@@ -26,6 +26,47 @@ class InitialSetup():
         self.userClient = userclient.UserClient()
         self.plx = PlexAPI.PlexAPI()
 
+    def chooseServer(self, token):
+        dialog = xbmcgui.Dialog()
+        string = xbmcaddon.Addon().getLocalizedString
+        # Populate g_PMS variable with the found Plex servers
+        self.plx.discoverPMS(xbmc.getIPAddress(),
+                             plexToken=token)
+        self.logMsg('g_PMS: %s' % self.plx.g_PMS, 1)
+        serverlist = self.plx.returnServerList(self.plx.g_PMS)
+        self.logMsg('PMS serverlist: %s' % serverlist, 2)
+        # Let user pick server from a list
+        # Get a nicer list
+        dialoglist = []
+        # Exit if no servers found
+        if len(serverlist) == 0:
+            dialog.ok(
+                self.addonName,
+                string(39011)
+            )
+            return None
+        for server in serverlist:
+            if server['local'] == '1':
+                # server is in the same network as client. Add "local"
+                msg = string(39022)
+            else:
+                # Add 'remote'
+                msg = string(39054)
+            if server.get('ownername'):
+                # Display username if its not our PMS
+                dialoglist.append('%s (%s, %s)'
+                                  % (server['name'],
+                                     server['ownername'],
+                                     msg))
+            else:
+                dialoglist.append('%s (%s)'
+                                  % (server['name'],
+                                     msg))
+        resp = dialog.multiselect(string(39012), dialoglist)
+        if resp:
+            map(lambda idx:serverlist[idx], resp)   
+        return None
+        
     def setup(self, forcePlexTV=False, chooseServer=False):
         """
         Initial setup. Run once upon startup.
@@ -117,44 +158,15 @@ class InitialSetup():
                 plexid = result['plexid']
         # Get g_PMS list of servers (saved to plx.g_PMS)
         httpsUpdated = False
+        isconnected = False
         while True:
+            server = None
             if httpsUpdated is False:
-                # Populate g_PMS variable with the found Plex servers
-                self.plx.discoverPMS(xbmc.getIPAddress(),
-                                     plexToken=plexToken)
+                server = self.chooseServer(plexToken)
                 isconnected = False
-                self.logMsg('g_PMS: %s' % self.plx.g_PMS, 1)
-                serverlist = self.plx.returnServerList(self.plx.g_PMS)
-                self.logMsg('PMS serverlist: %s' % serverlist, 2)
-                # Let user pick server from a list
-                # Get a nicer list
-                dialoglist = []
-                # Exit if no servers found
-                if len(serverlist) == 0:
-                    dialog.ok(
-                        self.addonName,
-                        string(39011)
-                    )
+            if not server:
                     break
-                for server in serverlist:
-                    if server['local'] == '1':
-                        # server is in the same network as client. Add "local"
-                        msg = string(39022)
-                    else:
-                        # Add 'remote'
-                        msg = string(39054)
-                    if server.get('ownername'):
-                        # Display username if its not our PMS
-                        dialoglist.append('%s (%s, %s)'
-                                          % (server['name'],
-                                             server['ownername'],
-                                             msg))
-                    else:
-                        dialoglist.append('%s (%s)'
-                                          % (server['name'],
-                                             msg))
-                resp = dialog.select(string(39012), dialoglist)
-            server = serverlist[resp]
+            server = server[0]    
             activeServer = server['machineIdentifier']
             # Re-direct via plex if remote - will lead to the correct SSL
             # certificate
@@ -180,7 +192,7 @@ class InitialSetup():
                                            verifySSL=verifySSL)
             if chk == 504 and httpsUpdated is False:
                 # Not able to use HTTP, try HTTPs for now
-                serverlist[resp]['scheme'] = 'https'
+                server['scheme'] = 'https'
                 httpsUpdated = True
                 continue
             httpsUpdated = False

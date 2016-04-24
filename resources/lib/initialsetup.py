@@ -10,6 +10,7 @@ import utils
 import clientinfo
 import downloadutils
 import userclient
+import devices
 
 import PlexAPI
 
@@ -46,7 +47,7 @@ class InitialSetup():
             )
             return None
         for server in serverlist:
-            if server['local'] == '1':
+            if server.local:
                 # server is in the same network as client. Add "local"
                 msg = string(39022)
             else:
@@ -55,8 +56,8 @@ class InitialSetup():
             if server.get('ownername'):
                 # Display username if its not our PMS
                 dialoglist.append('%s (%s, %s)'
-                                  % (server['name'],
-                                     server['ownername'],
+                                  % (server.name,
+                                     server.ownername,
                                      msg))
             else:
                 dialoglist.append('%s (%s)'
@@ -76,8 +77,6 @@ class InitialSetup():
         string = xbmcaddon.Addon().getLocalizedString
         # SERVER INFO #####
         self.logMsg("Initial setup called.", 0)
-        server = self.userClient.getServer()
-        serverid = utils.settings('plex_machineIdentifier')
         # Get Plex credentials from settings file, if they exist
         plexdict = self.plx.GetPlexLoginFromSettings()
         myplexlogin = plexdict['myplexlogin']
@@ -140,6 +139,9 @@ class InitialSetup():
                         'plexHomeSize', value=xml.attrib.get('homeSize', '1'))
                     self.logMsg('Updated Plex info from plex.tv', 0)
 
+
+        server = self.userClient.getServer()
+        serverid = utils.settings('plex_machineIdentifier')
         # If a Plex server IP has already been set, return.
         if server and forcePlexTV is False and chooseServer is False:
             self.logMsg("Server is already set.", 0)
@@ -157,100 +159,96 @@ class InitialSetup():
                 plexToken = result['token']
                 plexid = result['plexid']
         # Get g_PMS list of servers (saved to plx.g_PMS)
-        httpsUpdated = False
-        isconnected = False
-        while True:
-            server = None
-            if httpsUpdated is False:
-                server = self.chooseServer(plexToken)
-                isconnected = False
-            if not server:
-                    break
-            server = server[0]    
-            activeServer = server['machineIdentifier']
-            # Re-direct via plex if remote - will lead to the correct SSL
-            # certificate
-            if server['local'] == '1':
-                url = server['scheme'] + '://' + server['ip'] + ':' \
-                    + server['port']
-            else:
-                url = server['baseURL']
-            # Deactive SSL verification if the server is local!
-            # Watch out - settings is cached by Kodi - use dedicated var!
-            if server['local'] == '1':
-                utils.settings('sslverify', 'false')
-                self.logMsg("Setting SSL verify to false, because server is "
-                            "local", 1)
-                verifySSL = False
-            else:
-                utils.settings('sslverify', 'true')
-                self.logMsg("Setting SSL verify to true, because server is "
-                            "not local", 1)
-                verifySSL = None
-            chk = self.plx.CheckConnection(url,
-                                           server['accesstoken'],
-                                           verifySSL=verifySSL)
-            if chk == 504 and httpsUpdated is False:
-                # Not able to use HTTP, try HTTPs for now
-                server['scheme'] = 'https'
-                httpsUpdated = True
-                continue
+        serverlist = self.chooseServer(plexToken)
+        if not serverlist:
+            return
+        activeServer = []
+        failedServer = []
+        for server in serverlist:
             httpsUpdated = False
-            if chk == 401:
-                # Not yet authorized for Plex server
-                # Please sign in to plex.tv
-                dialog.ok(self.addonName,
-                          string(39013) + server['name'],
-                          string(39014))
-                result = self.plx.PlexTvSignInWithPin()
-                if result:
-                    plexLogin = result['username']
-                    plexToken = result['token']
-                    plexid = result['plexid']
+            while True:
+                # Re-direct via plex if remote - will lead to the correct SSL
+                # certificate
+                if server.local:
+                    url = server.scheme + '://' + server.ip + ':' \
+                        + server.port
                 else:
-                    # Exit while loop if user cancels
+                    url = server.baseURL
+                # Deactive SSL verification if the server is local!
+                # Watch out - settings is cached by Kodi - use dedicated var!
+                if server.local:
+                    utils.settings('sslverify', 'false')
+                    self.logMsg("Setting SSL verify to false, because server is "
+                                "local", 1)
+                    verifySSL = False
+                else:
+                    utils.settings('sslverify', 'true')
+                    self.logMsg("Setting SSL verify to true, because server is "
+                                "not local", 1)
+                    verifySSL = None
+                chk = self.plx.CheckConnection(url,
+                                               server.accesstoken,
+                                               verifySSL=verifySSL)
+                if chk == 504 and httpsUpdated is False:
+                    # Not able to use HTTP, try HTTPs for now
+                    server.scheme = 'https'
+                    httpsUpdated = True
+                    continue
+                if chk == 401:
+                    # Not yet authorized for Plex server
+                    # Please sign in to plex.tv
+                    dialog.ok(self.addonName,
+                              string(39013) + server.name,
+                              string(39014))
+                    result = self.plx.PlexTvSignInWithPin()
+                    if result:
+                        plexLogin = result['username']
+                        plexToken = result['token']
+                        plexid = result['plexid']
+                        
+                        httpsUpdated = False
+                    else:
+                        # Exit while loop if user cancels
+                        break
+                # Problems connecting
+                elif chk >= 400 or chk is False:
+                    failedServer.append(server)
                     break
-            # Problems connecting
-            elif chk >= 400 or chk is False:
-                # Problems connecting to server. Pick another server?
-                resp = dialog.yesno(self.addonName,
-                                    string(39015))
-                # Exit while loop if user chooses No
-                if not resp:
+                # Otherwise: connection worked!
+                else:
+                    activeServer.append(server)
                     break
-            # Otherwise: connection worked!
-            else:
-                isconnected = True
-                break
-        if not isconnected:
+        if len(activeServer) == 0:
             # Enter Kodi settings instead
             xbmc.executebuiltin('Addon.OpenSettings(%s)' % self.addonId)
             return
-        # Write to Kodi settings file
-        utils.settings('plex_machineIdentifier', activeServer)
-        utils.settings('plex_servername', server['name'])
-        utils.settings('plex_serverowned',
-                       'true' if server['owned'] == '1'
-                       else 'false')
-        if server['local'] == '1':
-            scheme = server['scheme']
-            utils.settings('ipaddress', server['ip'])
-            utils.settings('port', server['port'])
-        else:
-            baseURL = server['baseURL'].split(':')
-            scheme = baseURL[0]
-            utils.settings('ipaddress', baseURL[1].replace('//', ''))
-            utils.settings('port', baseURL[2])
-
-        if scheme == 'https':
-            utils.settings('https', 'true')
-        else:
-            utils.settings('https', 'false')
-        self.logMsg("Writing to Kodi user settings file", 0)
-        self.logMsg("PMS machineIdentifier: %s, ip: %s, port: %s, https: %s "
-                    % (activeServer, server['ip'], server['port'],
-                        server['scheme']), 0)
-
+        if len(failedServer) > 0:
+            # Problems connecting to server. Pick another server?
+            resp = dialog.yesno(self.addonName,
+                                string(39015))
+            # Exit while loop if user chooses No
+            if not resp:
+                return
+        
+        myStr = ""
+        for server in activeServer:
+            if not server.local:
+                baseURL = server.baseURL.split(':')
+                server.scheme = baseURL[0]
+                server.ipaddress = baseURL[1].replace('//', '')
+                server.port = baseURL[2]
+            
+            # Write to Kodi settings file
+            struct = server.toStruct()
+            myStr = str(struct) + myStr
+            # enforce https?
+            # if scheme == 'https':
+            #    utils.settings('https', 'true')
+            #else:
+            #    utils.settings('https', 'false')
+            self.logMsg("Writing to Kodi user settings file", 0)
+            utils.settings("activeserver", myStr)
+        
         if forcePlexTV is True or chooseServer is True:
             return
 
@@ -295,12 +293,10 @@ class InitialSetup():
             utils.settings('enableMusic', value="false")
 
         if goToSettings:
-            xbmc.executebuiltin(
-                'Addon.OpenSettings(plugin.video.plexkodiconnect)')
+            xbmc.executebuiltin('Addon.OpenSettings(%s)' % self.addonId)
         else:
             # Open Settings page now? You will need to restart!
             if dialog.yesno(heading=self.addonName,
                             line1=string(39017)):
                 utils.window('emby_serverStatus', value="Stop")
-                xbmc.executebuiltin(
-                    'Addon.OpenSettings(plugin.video.plexkodiconnect)')
+                xbmc.executebuiltin('Addon.OpenSettings(%s)' % self.addonId)

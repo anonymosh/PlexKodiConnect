@@ -8,6 +8,7 @@ import xbmcgui
 import xbmcvfs
 
 import clientinfo
+import userclient
 import utils
 
 import PlexAPI
@@ -27,7 +28,7 @@ class PlayUtils():
         self.clientInfo = clientinfo.ClientInfo()
 
         self.userid = utils.window('currUserId')
-        self.server = utils.window('pms_server')
+        self.server = userclient.UserClient().getServer()
         self.machineIdentifier = utils.window('plex_machineIdentifier')
 
     def getPlayUrl(self, partNumber=None):

@@ -33,6 +33,7 @@ class UserClient(threading.Thread):
         self.retry = 0
 
         self.currUser = None
+        self.username = None
         self.currUserId = None
         self.currServer = None
         self.currToken = None
@@ -41,6 +42,7 @@ class UserClient(threading.Thread):
 
         self.userSettings = None
 
+        
         self.addon = xbmcaddon.Addon()
         self.doUtils = downloadutils.DownloadUtils()
 
@@ -150,6 +152,7 @@ class UserClient(threading.Thread):
 
         self.currUserId = userId
         self.currToken = usertoken
+        self.username = username
         self.currServer = self.getServer()
         self.ssl = self.getSSLverify()
         self.sslcert = self.getSSL()

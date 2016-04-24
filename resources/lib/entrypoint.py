@@ -176,11 +176,7 @@ def reConnect():
     utils.settings('plexAvatar', value="")
 
     # Reset connection details
-    utils.settings('plex_machineIdentifier', value="")
-    utils.settings('plex_servername', value="")
-    utils.settings('https', value="")
-    utils.settings('ipaddress', value="")
-    utils.settings('port', value="")
+    utils.settings('activeserver', value="")
 
     # Log out currently signed in user:
     utils.window('emby_serverStatus', value="401")
@@ -838,7 +834,7 @@ def BrowseContent(viewname, type="", folderid=""):
 
 ##### CREATE LISTITEM FROM EMBY METADATA #####
 def createListItemFromEmbyItem(item,art=artwork.Artwork(),doUtils=downloadutils.DownloadUtils()):
-    API = api.API(item)
+    API = PlexAPI.API(item)
     itemid = item['Id']
     
     title = item.get('Name')

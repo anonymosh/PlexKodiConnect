@@ -5,6 +5,7 @@ import string
 import xbmc
 
 from utils import logging
+import clientinfo
 
 
 def xbmc_photo():
@@ -122,18 +123,12 @@ class jsonClass():
         return result
 
     def getPlexHeaders(self):
+        clientInfos = clientinfo.ClientInfo().getXArgsDeviceInfo()
         h = {
             "Content-type": "application/x-www-form-urlencoded",
             "Access-Control-Allow-Origin": "*",
-            "X-Plex-Version": self.settings['version'],
-            "X-Plex-Client-Identifier": self.settings['uuid'],
-            "X-Plex-Provides": "player",
-            "X-Plex-Product": "PlexKodiConnect",
-            "X-Plex-Device-Name": self.settings['client_name'],
-            "X-Plex-Platform": "Kodi",
-            "X-Plex-Model": self.settings['platform'],
-            "X-Plex-Device": "PC",
         }
+        h = h.merge(clientInfos)
         if self.settings['myplex_user']:
             h["X-Plex-Username"] = self.settings['myplex_user']
         return h

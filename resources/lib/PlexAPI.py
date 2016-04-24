@@ -44,9 +44,11 @@ import xbmc
 import xbmcvfs
 
 import clientinfo
+import userclient
 import utils
 import downloadutils
 import requests
+import devices
 from PlexFunctions import PlexToKodiTimefactor, PMSHttpsEnabled
 
 
@@ -397,6 +399,7 @@ class PlexAPI():
         baseURL = scheme + '://' + ip + ':' + port
         self.g_PMS[uuid] = {
             'name': name,
+            'uuid': uuid,
             'scheme': scheme,
             'ip': ip,
             'port': port,
@@ -1153,19 +1156,7 @@ class PlexAPI():
         """
         serverlist = []
         for key, value in data.items():
-            serverlist.append({
-                'name': value.get('name'),
-                'address': value.get('address'),
-                'ip': value.get('ip'),
-                'port': value.get('port'),
-                'scheme': value.get('scheme'),
-                'local': value.get('local'),
-                'owned': value.get('owned'),
-                'machineIdentifier': key,
-                'accesstoken': value.get('accesstoken'),
-                'baseURL': value.get('baseURL'),
-                'ownername': value.get('ownername')
-            })
+            serverlist.append(devices.Server.parse(value))
         return serverlist
 
 
@@ -1184,7 +1175,7 @@ class API():
         # which media part in the XML response shall we look at?
         self.part = 0
         self.__language__ = xbmcaddon.Addon().getLocalizedString
-        self.server = utils.window('pms_server')
+        self.server = userclient.UserClient().getServer()
 
     def setPartNumber(self, number=None):
         """

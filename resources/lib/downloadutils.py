@@ -9,6 +9,7 @@ import xbmcgui
 
 from utils import logging, settings, window
 import clientinfo
+import userclient
 
 ###############################################################################
 
@@ -99,6 +100,7 @@ class DownloadUtils():
         self.s = requests.Session()
 
         client = clientinfo.ClientInfo()
+        userClient = userclient.UserClient()
         self.deviceId = client.getDeviceId()
         # Attach authenticated header to the session
         self.s.headers = client.getXArgsDeviceInfo()
@@ -107,9 +109,9 @@ class DownloadUtils():
         self.setSSL()
 
         # Set other stuff
-        self.setServer(window('pms_server'))
-        self.setToken(window('pms_token'))
-        self.setUserId(window('currUserId'))
+        self.setServer(userClient.getServer())
+        self.setToken( userClient.currToken)
+        self.setUserId(userClient.currUserId)
         self.setUsername(window('plex_username'))
 
         # Counters to declare PMS dead or unauthorized

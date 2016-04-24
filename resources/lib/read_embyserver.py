@@ -580,7 +580,7 @@ class Read_EmbyServer():
             doUtils(url, type="POST")
         elif not deletelike and like == False:
             url = "{server}/emby/Users/{UserId}/Items/%s/Rating?Likes=false&format=json" % itemid
-            doUtil(url, type="POST")
+            doUtils(url, type="POST")
         elif deletelike:
             url = "{server}/emby/Users/{UserId}/Items/%s/Rating?format=json" % itemid
             doUtils(url, type="DELETE")

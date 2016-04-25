@@ -53,7 +53,7 @@ class InitialSetup():
             else:
                 # Add 'remote'
                 msg = string(39054)
-            if server.get('ownername'):
+            if server.ownername:
                 # Display username if its not our PMS
                 dialoglist.append('%s (%s, %s)'
                                   % (server.name,
@@ -61,7 +61,7 @@ class InitialSetup():
                                      msg))
             else:
                 dialoglist.append('%s (%s)'
-                                  % (server['name'],
+                                  % (server.name,
                                      msg))
         resp = dialog.multiselect(string(39012), dialoglist)
         if resp:

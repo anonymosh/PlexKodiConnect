@@ -41,7 +41,7 @@ class ClientInfo():
             'X-Plex-Device-Name': self.getDeviceName(),
             'X-Plex-Platform': self.getPlatform(),
             # 'X-Plex-Platform-Version': 'unknown',
-            'X-Plex-Model': self.settings['platform'],
+            'X-Plex-Model': settings('platform'),
             'X-Plex-Product': self.getAddonName(),
             'X-Plex-Version': self.getVersion(),
             'X-Plex-Client-Identifier': self.getDeviceId(),

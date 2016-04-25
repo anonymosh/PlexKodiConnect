@@ -216,10 +216,10 @@ def logging(cls):
     cls.addonName = addonName
 
     # Define new class methods and attach them to class
-    def newFunction(self, msg, lvl=0):
+    def logMsg(self, msg, lvl=0):
         title = "%s %s" % (addonName, cls.__name__)
         logMsg(title, msg, lvl)
-    cls.logMsg = newFunction
+    cls.logMsg = logMsg
 
     # Return class to render this a decorator
     return cls

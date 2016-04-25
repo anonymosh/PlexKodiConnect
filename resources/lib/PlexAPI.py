@@ -760,10 +760,10 @@ class PlexAPI():
 
         response = urllib2.urlopen(request).read()
 
-        dprint(__name__, 1, "====== MyPlex sign out XML ======")
-        dprint(__name__, 1, response)
-        dprint(__name__, 1, "====== MyPlex sign out XML finished ======")
-        dprint(__name__, 0, 'MyPlex Sign Out done')
+        logMsg("====== MyPlex sign out XML ======", 1)
+        logMsg(response, 1)
+        logMsg("====== MyPlex sign out XML finished ======", 1)
+        logMsg('MyPlex Sign Out done', 0)
 
     def GetUserArtworkURL(self, username):
         """

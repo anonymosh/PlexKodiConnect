@@ -1156,7 +1156,7 @@ class PlexAPI():
         }
         """
         serverlist = []
-        for key, value in data.items():
+        for _, value in data.items():
             serverlist.append(devices.Server.parse(value))
         return serverlist
 

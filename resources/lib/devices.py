@@ -33,27 +33,33 @@ class Server():
         
     @classmethod
     def parse(cls, value):
+        print "val: %r" % value
         server = Server()    
-        server.name =  value.get('name'),
-        server.address =  value.get('address'),
-        server.ip =  value.get('ip'),
-        server.port =  value.get('port'),
-        server.scheme =  value.get('scheme'),
-        server.local =  value.get('local') == '1',
-        server.owned =  value.get('owned') == '1',
-        server.machineIdentifier =  value.get('uuid'),
-        server.accesstoken =  value.get('accesstoken'),
-        server.baseURL =  value.get('baseURL'),
+        server.name =  value.get('name')
+        server.address =  value.get('address')
+        server.ip =  value.get('ip')
+        server.port =  value.get('port')
+        server.scheme =  value.get('scheme')
+        server.machineIdentifier =  value['uuid']
+        server.accesstoken =  value.get('accesstoken')
+        server.baseURL =  value.get('baseURL')
         server.ownername =  value.get('ownername')
+        server.local =  value.get('local') == '1'
+        server.owned =  value.get('owned') == '1'
+        
         return server
 
-    def toStruct(self):
+    def __str__(self):
+        return ','.join("%s:%r" % (entry[0],entry[1]) for entry in vars(self).items())
+
+    @classmethod
+    def fromString(cls, s):
+        server = Server()
         d = {}
-        d['plex_machineIdentifier'] =  self.machineIdentifier
-        d['plex_servername'] =  self.name
-        d['plex_serverowned'] = self.owned
-        d['ipaddress'] =  self.ip
-        d['port'] =  self.port
-        d['ipaddress'] =  self.ipaddress
-        d['port'] =  self.port
-        return dict
+        a = s.split(',')
+        for entry in a:
+            print entry
+            (key,value) = entry.split(':')
+            d[key] = value
+        server.__dict__.update(d)
+        return server

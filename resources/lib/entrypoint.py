@@ -104,11 +104,7 @@ def chooseServer():
     utils.logMsg(title, "Successfully stopped library sync", 0)
 
     # Reset connection details
-    utils.settings('plex_machineIdentifier', value="")
-    utils.settings('plex_servername', value="")
-    utils.settings('https', value="")
-    utils.settings('ipaddress', value="")
-    utils.settings('port', value="")
+    utils.settings('activeServer', value="")
 
     # Log out currently signed in user:
     utils.window('emby_serverStatus', value="401")

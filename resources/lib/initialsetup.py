@@ -141,12 +141,11 @@ class InitialSetup():
 
 
         server = self.userClient.getServer()
-        serverid = utils.settings('plex_machineIdentifier')
         # If a Plex server IP has already been set, return.
-        if server and forcePlexTV is False and chooseServer is False:
-            self.logMsg("Server is already set.", 0)
-            self.logMsg("url: %s, Plex machineIdentifier: %s"
-                        % (server, serverid), 0)
+        if len(server) > 0 and forcePlexTV is False and chooseServer is False:
+            self.logMsg("Server are already set.", 0)
+            self.logMsg("url: %s, Plex machineIdentifiers: %s"
+                        % (server, ",".join("%s" %s.machineIdentifier for s in server)), 0)
             return
 
         # If not already retrieved myplex info, optionally let user sign in
@@ -230,7 +229,6 @@ class InitialSetup():
             if not resp:
                 return
         
-        myStr = ""
         for server in activeServer:
             if not server.local:
                 baseURL = server.baseURL.split(':')
@@ -238,17 +236,15 @@ class InitialSetup():
                 server.ipaddress = baseURL[1].replace('//', '')
                 server.port = baseURL[2]
             
-            # Write to Kodi settings file
-            struct = server.toStruct()
-            myStr = str(struct) + myStr
             # enforce https?
             # if scheme == 'https':
             #    utils.settings('https', 'true')
             #else:
             #    utils.settings('https', 'false')
-            self.logMsg("Writing to Kodi user settings file", 0)
-            utils.settings("activeserver", myStr)
-        
+        self.logMsg("Writing to Kodi user settings file", 0)
+        # Write to Kodi settings file
+        myStr = "|".join("%s" for server in activeServer)   
+        utils.settings("activeserver", myStr)
         if forcePlexTV is True or chooseServer is True:
             return
 

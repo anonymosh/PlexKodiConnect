@@ -28,12 +28,12 @@ class WebSocket(threading.Thread):
         self.queue = queue
         threading.Thread.__init__(self)
 
-    def process(self, opcode, message):
+    def process(self, opcode, jsonMessage):
         if opcode not in self.opcode_data:
             return False
 
         try:
-            message = json.loads(message)
+            message = json.loads(jsonMessage)
         except Exception as ex:
             self.logMsg('Error decoding message from websocket: %s' % ex, -1)
             self.logMsg(message, -1)

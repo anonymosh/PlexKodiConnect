@@ -57,7 +57,7 @@ class PlayUtils():
             utils.window('emby_%s.playmethod' % playurl, "DirectStream")
 
         elif self.isTranscoding():
-            log("File is transcoding.", 1)
+            self.logMsg("File is transcoding.", 1)
             quality = {
                 'maxVideoBitrate': self.getBitrate(),
                 'videoResolution': self.getResolution(),
@@ -74,16 +74,14 @@ class PlayUtils():
 
     def httpPlay(self):
         # Audio, Video, Photo
-        item = self.item
-        server = self.server
 
-        itemid = item['Id']
-        mediatype = item['MediaType']
+        itemid = self.item['Id']
+        mediatype = self.item['MediaType']
 
         if mediatype == "Audio":
-            playurl = "%s/emby/Audio/%s/stream" % (server, itemid)
+            playurl = "%s/emby/Audio/%s/stream" % (self.server, itemid)
         else:
-            playurl = "%s/emby/Videos/%s/stream?static=true" % (server, itemid)
+            playurl = "%s/emby/Videos/%s/stream?static=true" % (self.server, itemid)
 
         return playurl
 
@@ -118,20 +116,16 @@ class PlayUtils():
 
     def directPlay(self):
 
-        item = self.item
-
         try:
-            playurl = item['MediaSources'][0]['Path']
+            playurl = self.item['MediaSources'][0]['Path']
         except (IndexError, KeyError):
-            playurl = item['Path']
+            playurl = self.item['Path']
 
-        if item.get('VideoType'):
+        if self.item.get('VideoType'):
             # Specific format modification
-            type = item['VideoType']
-
-            if type == "Dvd":
+            if self.item['VideoType'] == "Dvd":
                 playurl = "%s/VIDEO_TS/VIDEO_TS.IFO" % playurl
-            elif type == "BluRay":
+            elif self.item['VideoType'] == "BluRay":
                 playurl = "%s/BDMV/index.bdmv" % playurl
 
         # Assign network protocol
@@ -147,26 +141,24 @@ class PlayUtils():
 
     def fileExists(self):
 
-        log = self.logMsg
-
         if 'Path' not in self.item:
             # File has no path defined in server
             return False
 
         # Convert path to direct play
         path = self.directPlay()
-        log("Verifying path: %s" % path, 1)
+        self.logMsg("Verifying path: %s" % path, 1)
 
         if xbmcvfs.exists(path):
-            log("Path exists.", 1)
+            self.logMsg("Path exists.", 1)
             return True
 
         elif ":" not in path:
-            log("Can't verify path, assumed linux. Still try to direct play.", 1)
+            self.logMsg("Can't verify path, assumed linux. Still try to direct play.", 1)
             return True
 
         else:
-            log("Failed to find file.", 1)
+            self.logMsg("Failed to find file.", 1)
             return False
 
     def h265enabled(self):
@@ -208,25 +200,6 @@ class PlayUtils():
             return False
         return True
 
-    def directStream(self):
-
-        server = self.server
-
-        itemid = self.API.getRatingKey()
-        type = self.API.getType()
-
-        # if 'Path' in item and item['Path'].endswith('.strm'):
-        #     # Allow strm loading when direct streaming
-        #     playurl = self.directPlay()
-        if type == "Audio":
-            playurl = "%s/emby/Audio/%s/stream.mp3" % (server, itemid)
-        else:
-            playurl = "%s/emby/Videos/%s/stream?static=true" % (server, itemid)
-            playurl = "{server}/player/playback/playMedia?key=%2Flibrary%2Fmetadata%2F%s&offset=0&X-Plex-Client-Identifier={clientId}&machineIdentifier={SERVER ID}&address={SERVER IP}&port={SERVER PORT}&protocol=http&path=http%3A%2F%2F{SERVER IP}%3A{SERVER PORT}%2Flibrary%2Fmetadata%2F{MEDIA ID}" % (itemid)
-            playurl = self.API.replaceURLtags()
-
-        return playurl
-
     def isNetworkSufficient(self):
         """
         Returns True if the network is sufficient (set in file settings)
@@ -245,36 +218,11 @@ class PlayUtils():
         return True
 
     def isTranscoding(self):
-        # I hope Plex transcodes everything
-        return True
-        item = self.item
-
-        canTranscode = item['MediaSources'][0]['SupportsTranscoding']
         # Make sure the server supports it
-        if not canTranscode:
+        if not self.item['MediaSources'][0]['SupportsTranscoding']:
             return False
 
         return True
-
-    def transcoding(self):
-
-        item = self.item
-
-        if 'Path' in item and item['Path'].endswith('.strm'):
-            # Allow strm loading when transcoding
-            playurl = self.directPlay()
-        else:
-            itemid = item['Id']
-            deviceId = self.clientInfo.getDeviceId()
-            playurl = (
-                "%s/emby/Videos/%s/master.m3u8?MediaSourceId=%s"
-                % (self.server, itemid, itemid)
-            )
-            playurl = (
-                "%s&VideoCodec=h264&AudioCodec=ac3&MaxAudioChannels=6&deviceId=%s&VideoBitrate=%s"
-                % (playurl, deviceId, self.getBitrate()*1000))
-
-        return playurl
 
     def getBitrate(self):
         # get the addon video quality

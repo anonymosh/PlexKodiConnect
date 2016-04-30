@@ -320,12 +320,12 @@ def doMainListing():
             if not path:
                 path = utils.window('Emby.nodes.%s.content' % i)
             label = utils.window('Emby.nodes.%s.title' % i)
-            type = utils.window('Emby.nodes.%s.type' % i)
+            node_type = utils.window('Emby.nodes.%s.type' % i)
             #because we do not use seperate entrypoints for each content type, we need to figure out which items to show in each listing.
             #for now we just only show picture nodes in the picture library video nodes in the video library and all nodes in any other window
-            if path and xbmc.getCondVisibility("Window.IsActive(Pictures)") and type == "photos":
+            if path and xbmc.getCondVisibility("Window.IsActive(Pictures)") and node_type == "photos":
                 addDirectoryItem(label, path)
-            elif path and xbmc.getCondVisibility("Window.IsActive(VideoLibrary)") and type != "photos":
+            elif path and xbmc.getCondVisibility("Window.IsActive(VideoLibrary)") and node_type != "photos":
                 addDirectoryItem(label, path)
             elif path and not xbmc.getCondVisibility("Window.IsActive(VideoLibrary) | Window.IsActive(Pictures) | Window.IsActive(MusicLibrary)"):
                 addDirectoryItem(label, path)
@@ -423,7 +423,7 @@ def deleteItem():
     doUtils = downloadutils.DownloadUtils()
     url = "{server}/emby/Items/%s?format=json" % embyid
     utils.logMsg("EMBY delete", "Deleting request: %s" % embyid, 0)
-    doUtils.downloadUrl(url, type="DELETE")
+    doUtils.downloadUrl(url, action_type="DELETE")
 
 ##### ADD ADDITIONAL USERS #####
 def addUser():
@@ -478,7 +478,7 @@ def addUser():
                     selected = additionalUsername[resp]
                     selected_userId = additionalUserlist[selected]
                     url = "{server}/emby/Sessions/%s/Users/%s" % (sessionId, selected_userId)
-                    doUtils.downloadUrl(url, postBody={}, type="DELETE")
+                    doUtils.downloadUrl(url, postBody={}, action_type="DELETE")
                     dialog.notification(
                             heading="Success!",
                             message="%s removed from viewing session" % selected,
@@ -511,7 +511,7 @@ def addUser():
             selected = users[resp]
             selected_userId = userlist[selected]
             url = "{server}/emby/Sessions/%s/Users/%s" % (sessionId, selected_userId)
-            doUtils.downloadUrl(url, postBody={}, type="POST")
+            doUtils.downloadUrl(url, postBody={}, action_type="POST")
             dialog.notification(
                     heading="Success!",
                     message="%s added to viewing session" % selected,
@@ -751,22 +751,22 @@ def GetSubFolders(nodeindex):
         title = utils.window('Emby.nodes.%s%s.title' %(nodeindex,node))
         if title:
             path = utils.window('Emby.nodes.%s%s.content' %(nodeindex,node))
-            type = utils.window('Emby.nodes.%s%s.type' %(nodeindex,node))
             addDirectoryItem(title, path)
     xbmcplugin.endOfDirectory(int(sys.argv[1]))
               
 ##### BROWSE EMBY NODES DIRECTLY #####    
-def BrowseContent(viewname, type="", folderid=""):
+def BrowseContent(viewname, browse_type="", folderid=""):
+    
     emby = embyserver.Read_EmbyServer()
     art = artwork.Artwork()
     doUtils = downloadutils.DownloadUtils()
     
     #folderid used as filter ?
     if folderid in ["recent","recentepisodes","inprogress","inprogressepisodes","unwatched","nextepisodes","sets","genres","random","recommended"]:
-        filter = folderid
+        filter_type = folderid
         folderid = ""
     else:
-        filter = ""
+        filter_type = ""
     
     xbmcplugin.setPluginCategory(int(sys.argv[1]), viewname)
     #get views for root level
@@ -775,33 +775,35 @@ def BrowseContent(viewname, type="", folderid=""):
         for view in views:
             if view.get("name") == viewname.decode('utf-8'):
                 folderid = view.get("id")
+                break
     
-    utils.logMsg("BrowseContent","viewname: %s - type: %s - folderid: %s - filter: %s" %(viewname.decode('utf-8'), type.decode('utf-8'), folderid.decode('utf-8'), filter.decode('utf-8')))
+    if viewname is not None:
+        utils.logMsg("BrowseContent","viewname: %s - type: %s - folderid: %s - filter: %s" %(viewname.decode('utf-8'), browse_type.decode('utf-8'), folderid.decode('utf-8'), filter_type.decode('utf-8')))
     #set the correct params for the content type
     #only proceed if we have a folderid
     if folderid:
-        if type.lower() == "homevideos":
+        if browse_type.lower() == "homevideos":
             xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
             itemtype = "Video,Folder,PhotoAlbum"
-        elif type.lower() == "photos":
+        elif browse_type.lower() == "photos":
             xbmcplugin.setContent(int(sys.argv[1]), 'files')
             itemtype = "Photo,PhotoAlbum,Folder"
         else:
             itemtype = ""
         
         #get the actual listing
-        if type == "recordings":
+        if browse_type == "recordings":
             listing = emby.getTvRecordings(folderid)
-        elif type == "tvchannels":
+        elif browse_type == "tvchannels":
             listing = emby.getTvChannels()
-        elif filter == "recent":
+        elif filter_type == "recent":
             listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[0], sortby="DateCreated", recursive=True, limit=25, sortorder="Descending")
-        elif filter == "random":
+        elif filter_type == "random":
             listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[0], sortby="Random", recursive=True, limit=150, sortorder="Descending")
-        elif filter == "recommended":
-            listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[0], sortby="SortName", recursive=True, limit=25, sortorder="Ascending", filter="IsFavorite")
-        elif filter == "sets":
-            listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[1], sortby="SortName", recursive=True, limit=25, sortorder="Ascending", filter="IsFavorite")
+        elif filter_type == "recommended":
+            listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[0], sortby="SortName", recursive=True, limit=25, sortorder="Ascending", filter_type="IsFavorite")
+        elif filter_type == "sets":
+            listing = emby.getFilteredSection(folderid, itemtype=itemtype.split(",")[1], sortby="SortName", recursive=True, limit=25, sortorder="Ascending", filter_type="IsFavorite")
         else:
             listing = emby.getFilteredSection(folderid, itemtype=itemtype, recursive=False)
         
@@ -811,14 +813,14 @@ def BrowseContent(viewname, type="", folderid=""):
                 li = createListItemFromEmbyItem(item,art,doUtils)
                 if item.get("IsFolder") == True:
                     #for folders we add an additional browse request, passing the folderId
-                    path = "%s?id=%s&mode=browsecontent&type=%s&folderid=%s" % (sys.argv[0].decode('utf-8'), viewname.decode('utf-8'), type.decode('utf-8'), item.get("Id").decode('utf-8'))
+                    path = "%s?id=%s&mode=browsecontent&type=%s&folderid=%s" % (sys.argv[0].decode('utf-8'), viewname.decode('utf-8'), browse_type.decode('utf-8'), item.get("Id").decode('utf-8'))
                     xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=path, listitem=li, isFolder=True)
                 else:
                     #playable item, set plugin path and mediastreams
                     xbmcplugin.addDirectoryItem(handle=int(sys.argv[1]), url=li.getProperty("path"), listitem=li)
 
 
-    if filter == "recent":
+    if filter_type == "recent":
         xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_DATE)
     else:
         xbmcplugin.addSortMethod(int(sys.argv[1]), xbmcplugin.SORT_METHOD_VIDEO_TITLE)
@@ -965,15 +967,12 @@ def BrowseChannels(itemid, folderid=None):
     xbmcplugin.endOfDirectory(handle=int(sys.argv[1]))
 
 ##### LISTITEM SETUP FOR VIDEONODES #####
-def createListItem(item):
-
+def createListItem(item, appendShowTitle=False, appendSxxExx=False):
     title = item['title']
     li = xbmcgui.ListItem(title)
     li.setProperty('IsPlayable', "true")
-    
-    metadata = {
 
-        'Title': title,
+    metadata = {
         'duration': str(item['runtime']/60),
         'Plot': item['plot'],
         'Playcount': item['playcount']
@@ -989,12 +988,16 @@ def createListItem(item):
 
     if season and episode:
         li.setProperty('episodeno', "s%.2de%.2d" % (season, episode))
+        if appendSxxExx is True:
+            title = "S%.2dE%.2d - %s" % (season, episode, title)
 
     if "firstaired" in item:
         metadata['Premiered'] = item['firstaired']
 
     if "showtitle" in item:
         metadata['TVshowTitle'] = item['showtitle']
+        if appendShowTitle is True:
+            title = item['showtitle'] + ' - ' + title
 
     if "rating" in item:
         metadata['Rating'] = str(round(float(item['rating']),1))
@@ -1014,6 +1017,9 @@ def createListItem(item):
             castandrole.append((name, person['role']))
         metadata['Cast'] = cast
         metadata['CastAndRole'] = castandrole
+
+    metadata['Title'] = title
+    li.setLabel(title)
 
     li.setInfo(type="Video", infoLabels=metadata)  
     li.setProperty('resumetime', str(item['resume']['position']))
@@ -1205,6 +1211,10 @@ def getRecentEpisodes(viewid, mediatype, tagname, limit):
     # if the addon is called with recentepisodes parameter,
     # we return the recentepisodes list of the given tagname
     xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
+    appendShowTitle = True if \
+        utils.settings('RecentTvAppendShow') == 'true' else False
+    appendSxxExx = True if \
+        utils.settings('RecentTvAppendSeason') == 'true' else False
     # First we get a list of all the TV shows - filtered by tag
     query = {
         'jsonrpc': "2.0",
@@ -1253,7 +1263,9 @@ def getRecentEpisodes(viewid, mediatype, tagname, limit):
     else:
         for episode in episodes:
             if episode['tvshowid'] in allshowsIds:
-                li = createListItem(episode)
+                li = createListItem(episode,
+                                    appendShowTitle=appendShowTitle,
+                                    appendSxxExx=appendSxxExx)
                 xbmcplugin.addDirectoryItem(
                             handle=int(sys.argv[1]),
                             url=episode['file'],
@@ -1474,6 +1486,10 @@ def getOnDeck(viewid, mediatype, tagname, limit):
         limit:              Max. number of items to retrieve, e.g. 50
     """
     xbmcplugin.setContent(int(sys.argv[1]), 'episodes')
+    appendShowTitle = True if \
+        utils.settings('OnDeckTvAppendShow') == 'true' else False
+    appendSxxExx = True if \
+        utils.settings('OnDeckTvAppendSeason') == 'true' else False
     if utils.settings('OnDeckTVextended') == 'false':
         # Chances are that this view is used on Kodi startup
         # Wait till we've connected to a PMS. At most 30s
@@ -1493,7 +1509,9 @@ def getOnDeck(viewid, mediatype, tagname, limit):
         }
         for item in xml:
             API = PlexAPI.API(item)
-            listitem = API.CreateListItemFromPlexItem()
+            listitem = API.CreateListItemFromPlexItem(
+                appendShowTitle=appendShowTitle,
+                appendSxxExx=appendSxxExx)
             API.AddStreamInfo(listitem)
             pbutils.PlaybackUtils(item).setArtwork(listitem)
             params['id'] = API.getRatingKey()
@@ -1596,20 +1614,9 @@ def getOnDeck(viewid, mediatype, tagname, limit):
                 continue
         for episode in episodes:
             # There will always be only 1 episode ('limit=1')
-            li = createListItem(episode)
-            # Fix some skin shortcomings
-            title = episode.get('title', '')
-            if utils.settings('OnDeckTvAppendSeason') == 'true':
-                seasonid = episode.get('season')
-                episodeid = episode.get('episode')
-                if seasonid and episodeid:
-                    title = ('S' + str(seasonid) + 'E' + str(episodeid)
-                             + ' - ' + title)
-            if utils.settings('OnDeckTvAppendShow') == 'true':
-                show = episode.get('showtitle')
-                if show:
-                    title = show + ' - ' + title
-            li.setLabel(title)
+            li = createListItem(episode,
+                                appendShowTitle=appendShowTitle,
+                                appendSxxExx=appendSxxExx)
             xbmcplugin.addDirectoryItem(
                 handle=int(sys.argv[1]),
                 url=episode['file'],

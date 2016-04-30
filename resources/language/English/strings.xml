@@ -2,7 +2,7 @@
 <strings>
     <!-- Add-on settings -->
     <string id="30000">Server Address (IP)</string><!-- Verified -->
-    <string id="30002">Prefered playback method</string><!-- Verified -->
+    <string id="30002">Preferred playback method</string><!-- Verified -->
     <string id="30004">Log level</string><!-- Verified -->
     <string id="30005">Username: </string>
     <string id="30006">Password: </string>
@@ -302,6 +302,7 @@
     <string id="30536">Users must log in every time Kodi restarts</string>
     <string id="30537">RESTART KODI IF YOU MAKE ANY CHANGES</string>
     <string id="30538">Complete Re-Sync necessary</string>
+    <string id="30539">Download additional art from FanArtTV (slower!)</string>
 
 
     <!-- service add-on -->
@@ -328,7 +329,7 @@
     <string id="33020">Gathering tv shows from:</string>
     <string id="33021">Gathering:</string>
     <string id="33022">Detected the database needs to be recreated for this version of Emby for Kodi. Proceed?</string>
-    <string id="33023">Emby for Kod may not work correctly until the database is reset.</string>
+    <string id="33023">Emby for Kodi may not work correctly until the database is reset.</string>
     <string id="33024">Cancelling the database syncing process. The current Kodi version is unsupported.</string>
     <string id="33025">completed in:</string>
     <string id="33026">Comparing movies from:</string>
@@ -391,7 +392,7 @@
     <string id="39045">Appearance Tweaks</string>
     <string id="39046">TV Shows</string>
     <string id="39047">On Deck: Append show title to episode</string>
-    <string id="39048">On Deck: Append season- and episode-number (e.g. S3E2)</string>
+    <string id="39048">On Deck: Append season- and episode-number SxxExx</string>
     <string id="39049">Nothing works? Try a full reset!</string>
     <string id="39050">[COLOR yellow]Choose Plex Server from a list[/COLOR]</string>
     <string id="39051">Wait before sync new/changed PMS item [s]</string>
@@ -402,6 +403,9 @@
     <string id="39056">Used by Sync and when attempting to Direct Play</string>
     <string id="39057">Customize Paths</string>
     <string id="39058">Extend Plex TV Series "On Deck" view to all shows</string>
+    <string id="39059">Recently Added: Append show title to episode</string>
+    <string id="39060">Recently Added: Append season- and episode-number SxxExx</string>
+    <string id="39061">Would you like to download additional artwork from FanArtTV? Sync will be slower!</string>
 
     <!-- Plex Entrypoint.py -->
     <string id="39200">Log-out Plex Home User </string>
@@ -411,7 +415,7 @@
     <string id="39204">Perform manual library sync</string>
     <string id="39205">Unable to run the sync, the add-on is not connected to a Plex server.</string>
     <string id="39206">Plex might lock your account if you fail to log in too many times. Proceed anyway?</string>
-    <string id="39207">Reseting PMS connections, please wait</string>
+    <string id="39207">Resetting PMS connections, please wait</string>
     <string id="39208">Failed to reset PMS and plex.tv connects. Try to restart Kodi.</string>
     <string id="39209">[COLOR yellow]Log-in to plex.tv[/COLOR]</string>
     <string id="39210">Not yet connected to Plex Server</string>

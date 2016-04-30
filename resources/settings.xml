@@ -56,9 +56,9 @@
 		<setting id="fullSyncInterval" type="number" label="39053" default="60" option="int" />
 
 		<setting type="lsep" label="30538" /><!-- Complete Re-Sync necessary -->
+		<setting id="FanartTV" label="30539" type="bool" default="false" /><!-- Download additional art from FanArtTV -->
 		<setting id="enableMusic" type="bool" label="30509" default="true" />
 		<setting id="useDirectPaths" type="enum" label="30511" values="Addon(Default)|Native(Direct paths)" default="0" visible="true"/> <!-- Playback mode -->
-		
 
 		<setting id="streamMusic" type="bool" label="30510" default="false" visible="false" subsetting="true"/> <!-- Direct stream Music library -->
 		<setting type="lsep" label="30523" visible="false"/> <!-- Music metadata options -->
@@ -67,6 +67,8 @@
         <setting id="kodiplextimeoffset" type="number" label="Time difference in seconds (Koditime - Plextime)" default="0" visible="false" option="int" />
         <setting id="enableUpdateSongRating" type="bool" label="30526" default="false" visible="false" />
         <setting id="emby_pathverified" type="bool" default="false" visible="false" /> <!-- If 'false': one single warning message pops up if PKC cannot verify direct paths -->
+        <setting id="themoviedbAPIKey" type="text" default="ae06df54334aa653354e9a010f4b81cb" visible="false"/>
+        <setting id="FanArtTVAPIKey" type="text" default="639191cb0774661597f28a47e7e2bad5" visible="false"/>
 	</category>
 
 	<category label="39057"><!-- Customize Paths -->
@@ -127,10 +129,12 @@
 
 	<category label="39045"><!-- Appearance Tweaks -->
 		<setting id="connectMsg" type="bool" label="30249" default="true" />
-		<setting type="lsep" label="39046" />
+		<setting type="lsep" label="39046" /><!-- TV Shows -->
 		<setting id="OnDeckTVextended" type="bool" label="39058" default="true" /><!-- Extend Plex TV Series "On Deck" view to all shows -->
 		<setting id="OnDeckTvAppendShow" type="bool" label="39047" default="false" /><!--On Deck view: Append show title to episode-->
 		<setting id="OnDeckTvAppendSeason" type="bool" label="39048" default="false" /><!--On Deck view: Append season number to episode-->
+		<setting id="RecentTvAppendShow" type="bool" label="39059" default="false" /><!--Recently added: Append show title to episode-->
+		<setting id="RecentTvAppendSeason" type="bool" label="39060" default="false" /><!--Recently Added: Append season- and episode-number SxxExx-->
 	</category>
 
 	<category label="30022"><!-- Advanced -->

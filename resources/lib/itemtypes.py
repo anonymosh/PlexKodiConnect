@@ -11,7 +11,6 @@ import xbmcgui
 import xbmcvfs
 
 import artwork
-import downloadutils
 import utils
 import embydb_functions as embydb
 import kodidb_functions as kodidb
@@ -34,7 +33,6 @@ class Items(object):
     """
 
     def __init__(self):
-        self.doUtils = downloadutils.DownloadUtils()
         self.kodiversion = int(xbmc.getInfoLabel("System.BuildVersion")[:2])
         # self.directpath = utils.settings('useDirectPaths') == "1"
         self.directpath = True if utils.window('useDirectPaths') == 'true' \
@@ -309,10 +307,9 @@ class Movies(Items):
         count = 0
         for boxset in items:
 
-            title = boxset['Name']
             if pdialog:
                 percentage = int((float(count) / float(total))*100)
-                pdialog.update(percentage, message=title)
+                pdialog.update(percentage, message=boxset['Name'])
                 count += 1
             self.add_updateBoxset(boxset)
 
@@ -333,7 +330,6 @@ class Movies(Items):
         # Process single movie
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -442,6 +438,17 @@ class Movies(Items):
                 'mode': "play"
             }
             filename = "%s?%s" % (path, urllib.urlencode(params))
+            playurl = filename
+
+        # Even if the item is only updated, the file may have been moved or updated.
+        # In the worst case we get exactly the same values as we had before.
+        pathid = self.kodi_db.addPath(path)
+        fileid = self.kodi_db.addFile(filename, pathid)
+
+        # movie table:
+        # c22 - playurl
+        # c23 - pathid
+        # This information is used later by file browser.
 
         # UPDATE THE MOVIE #####
         if update_item:
@@ -453,12 +460,12 @@ class Movies(Items):
                 "UPDATE movie",
                 "SET c00 = ?, c01 = ?, c02 = ?, c03 = ?, c04 = ?, c05 = ?, c06 = ?,",
                     "c07 = ?, c09 = ?, c10 = ?, c11 = ?, c12 = ?, c14 = ?, c15 = ?,",
-                    "c16 = ?, c18 = ?, c19 = ?, c21 = ?",
+                    "c16 = ?, c18 = ?, c19 = ?, c21 = ?, c22 = ?, c23 = ?",
                 "WHERE idMovie = ?"
             ))
             kodicursor.execute(query, (title, plot, shortplot, tagline, votecount, rating, writer,
                 year, imdb, sorttitle, runtime, mpaa, genre, director, title, studio, trailer,
-                country, movieid))
+                country, playurl, pathid, movieid))
 
             # Update the checksum in emby table
             emby_db.updateReference(itemid, checksum)
@@ -466,25 +473,20 @@ class Movies(Items):
         ##### OR ADD THE MOVIE #####
         else:
             self.logMsg("ADD movie itemid: %s - Title: %s" % (itemid, title), 1)
-            
-            # Add path
-            pathid = kodi_db.addPath(path)
-            # Add the file
-            fileid = kodi_db.addFile(filename, pathid)
-            
+
             # Create the movie entry
             query = (
                 '''
                 INSERT INTO movie(
                     idMovie, idFile, c00, c01, c02, c03, c04, c05, c06, c07, 
-                    c09, c10, c11, c12, c14, c15, c16, c18, c19, c21)
+                    c09, c10, c11, c12, c14, c15, c16, c18, c19, c21, c22, c23)
 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 '''
             )
             kodicursor.execute(query, (movieid, fileid, title, plot, shortplot, tagline, votecount,
                 rating, writer, year, imdb, sorttitle, runtime, mpaa, genre, director, title,
-                studio, trailer, country))
+                studio, trailer, country, playurl, pathid))
 
             # Create the reference in emby table
             emby_db.addReference(itemid, movieid, "Movie", "movie", fileid, pathid, None, checksum, viewid)
@@ -508,28 +510,28 @@ class Movies(Items):
         kodicursor.execute(query, (pathid, filename, dateadded, fileid))
         
         # Process countries
-        kodi_db.addCountries(movieid, countries, "movie")
+        self.kodi_db.addCountries(movieid, countries, "movie")
         # Process cast
         people = API.getPeopleList()
-        kodi_db.addPeople(movieid, people, "movie")
+        self.kodi_db.addPeople(movieid, people, "movie")
         # Process genres
-        kodi_db.addGenres(movieid, genres, "movie")
+        self.kodi_db.addGenres(movieid, genres, "movie")
         # Process artwork
         allartworks = API.getAllArtwork()
         artwork.addArtwork(allartworks, movieid, "movie", kodicursor)
         # Process stream details
         streams = API.getMediaStreams()
-        kodi_db.addStreams(fileid, streams, runtime)
+        self.kodi_db.addStreams(fileid, streams, runtime)
         # Process studios
-        kodi_db.addStudios(movieid, studios, "movie")
+        self.kodi_db.addStudios(movieid, studios, "movie")
         # Process tags: view, Plex collection tags
         tags = [viewtag]
         tags.extend(collections)
         if userdata['Favorite']:
             tags.append("Favorite movies")
-        kodi_db.addTags(movieid, tags, "movie")
+        self.kodi_db.addTags(movieid, tags, "movie")
         # Process playstates
-        kodi_db.addPlaystate(fileid, resume, runtime, playcount, dateplayed)
+        self.kodi_db.addPlaystate(fileid, resume, runtime, playcount, dateplayed)
 
     def remove(self, itemid):
         # Remove movieid, fileid, emby reference
@@ -597,9 +599,8 @@ class MusicVideos(Items):
         # Process single music video
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
-        API = api.API(item)
+        API = PlexAPI.API(item)
 
         # If the item already exist in the local Kodi DB we'll perform a full item update
         # If the item doesn't exist, we'll add it to the database
@@ -788,32 +789,31 @@ class MusicVideos(Items):
             artist['Type'] = "Artist"
         people.extend(artists)
         people = artwork.getPeopleArtwork(people)
-        kodi_db.addPeople(mvideoid, people, "musicvideo")
+        self.kodi_db.addPeople(mvideoid, people, "musicvideo")
         # Process genres
-        kodi_db.addGenres(mvideoid, genres, "musicvideo")
+        self.kodi_db.addGenres(mvideoid, genres, "musicvideo")
         # Process artwork
         artwork.addArtwork(artwork.getAllArtwork(item), mvideoid, "musicvideo", kodicursor)
         # Process stream details
         streams = API.getMediaStreams()
-        kodi_db.addStreams(fileid, streams, runtime)
+        self.kodi_db.addStreams(fileid, streams, runtime)
         # Process studios
-        kodi_db.addStudios(mvideoid, studios, "musicvideo")
+        self.kodi_db.addStudios(mvideoid, studios, "musicvideo")
         # Process tags: view, emby tags
         tags = [viewtag]
         tags.extend(item['Tags'])
         if userdata['Favorite']:
             tags.append("Favorite musicvideos")
-        kodi_db.addTags(mvideoid, tags, "musicvideo")
+        self.kodi_db.addTags(mvideoid, tags, "musicvideo")
         # Process playstates
         resume = API.adjustResume(userdata['Resume'])
         total = round(float(runtime), 6)
-        kodi_db.addPlaystate(fileid, resume, total, playcount, dateplayed)
+        self.kodi_db.addPlaystate(fileid, resume, total, playcount, dateplayed)
 
     def updateUserdata(self, item):
         # This updates: Favorite, LastPlayedDate, Playcount, PlaybackPositionTicks
         # Poster with progress bar
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         API = api.API(item)
         
         # Get emby information
@@ -835,9 +835,9 @@ class MusicVideos(Items):
 
         # Process favorite tags
         if userdata['Favorite']:
-            kodi_db.addTag(mvideoid, "Favorite musicvideos", "musicvideo")
+            self.kodi_db.addTag(mvideoid, "Favorite musicvideos", "musicvideo")
         else:
-            kodi_db.removeTag(mvideoid, "Favorite musicvideos", "musicvideo")
+            self.kodi_db.removeTag(mvideoid, "Favorite musicvideos", "musicvideo")
 
         # Process playstates
         playcount = userdata['PlayCount']
@@ -845,7 +845,7 @@ class MusicVideos(Items):
         resume = API.adjustResume(userdata['Resume'])
         total = round(float(runtime), 6)
 
-        kodi_db.addPlaystate(fileid, resume, total, playcount, dateplayed)
+        self.kodi_db.addPlaystate(fileid, resume, total, playcount, dateplayed)
         emby_db.updateReference(itemid, checksum)
 
     def remove(self, itemid):
@@ -872,8 +872,7 @@ class MusicVideos(Items):
             "AND media_type = 'musicvideo'"
         ))
         kodicursor.execute(query, (mvideoid,))
-        rows = kodicursor.fetchall()
-        for row in rows:
+        for row in kodicursor.fetchall():
             
             url = row[0]
             imagetype = row[1]
@@ -953,7 +952,6 @@ class TVShows(Items):
         # Process single tvshow
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -1041,7 +1039,7 @@ class TVShows(Items):
             path = "%s%s/" % (toplevelpath, itemid)
 
         # Add top path
-        toppathid = kodi_db.addPath(toplevelpath)
+        toppathid = self.kodi_db.addPath(toplevelpath)
         # UPDATE THE TVSHOW #####
         if update_item:
             self.logMsg("UPDATE tvshow itemid: %s - Title: %s" % (itemid, title), 1)
@@ -1073,7 +1071,7 @@ class TVShows(Items):
             kodicursor.execute(query, (toplevelpath, "tvshows", "metadata.local", 1, toppathid))
             
             # Add path
-            pathid = kodi_db.addPath(path)
+            pathid = self.kodi_db.addPath(path)
             
             # Create the tvshow entry
             query = (
@@ -1106,18 +1104,18 @@ class TVShows(Items):
         
         # Process cast
         people = API.getPeopleList()
-        kodi_db.addPeople(showid, people, "tvshow")
+        self.kodi_db.addPeople(showid, people, "tvshow")
         # Process genres
-        kodi_db.addGenres(showid, genres, "tvshow")
+        self.kodi_db.addGenres(showid, genres, "tvshow")
         # Process artwork
         allartworks = API.getAllArtwork()
         artwork.addArtwork(allartworks, showid, "tvshow", kodicursor)
         # Process studios
-        kodi_db.addStudios(showid, studios, "tvshow")
+        self.kodi_db.addStudios(showid, studios, "tvshow")
         # Process tags: view, PMS collection tags
         tags = [viewtag]
         tags.extend(collections)
-        kodi_db.addTags(showid, tags, "tvshow")
+        self.kodi_db.addTags(showid, tags, "tvshow")
 
         if force_episodes:
             # We needed to recreate the show entry. Re-add episodes now.
@@ -1148,7 +1146,6 @@ class TVShows(Items):
             return
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         seasonnum = API.getIndex()
         # Get parent tv show Plex id
@@ -1163,7 +1160,7 @@ class TVShows(Items):
                         % (itemid), -1)
             return
 
-        seasonid = kodi_db.addSeason(showid, seasonnum)
+        seasonid = self.kodi_db.addSeason(showid, seasonnum)
         checksum = API.getChecksum()
         # Check whether Season already exists
         update_item = True
@@ -1204,10 +1201,8 @@ class TVShows(Items):
         viewtag and viewid are irrelevant!
         """
         # Process single episode
-        kodiversion = self.kodiversion
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -1304,7 +1299,7 @@ class TVShows(Items):
             #     self.logMsg("Skipping: %s. Unable to add series: %s." % (itemid, seriesId), -1)
             self.logMsg("Parent tvshow now found, skip item", 2)
             return False
-        seasonid = kodi_db.addSeason(showid, season)
+        seasonid = self.kodi_db.addSeason(showid, season)
 
         # GET THE FILE AND PATH #####
         doIndirect = not self.directpath
@@ -1325,7 +1320,7 @@ class TVShows(Items):
                     # Network share
                     filename = playurl.rsplit("/", 1)[1]
                 path = playurl.replace(filename, "")
-                parentPathId = kodi_db.getParentPathId(path)
+                parentPathId = self.kodi_db.getParentPathId(path)
         if doIndirect:
             # Set plugin path and media flags using real filename
             if playurl is not None:
@@ -1343,37 +1338,49 @@ class TVShows(Items):
                 'mode': "play"
             }
             filename = "%s?%s" % (path, urllib.urlencode(params))
-            parentPathId = kodi_db.addPath(
+            playurl = filename
+            parentPathId = self.kodi_db.addPath(
                 'plugin://plugin.video.plexkodiconnect.tvshows/')
+
+        # Even if the item is only updated, the file may have been moved or updated.
+        # In the worst case we get exactly the same values as we had before.
+        pathid = self.kodi_db.addPath(path)
+        fileid = self.kodi_db.addFile(filename, pathid)
+
+        # episodes table:
+        # c18 - playurl
+        # c19 - pathid
+        # This information is used later by file browser.
 
         # UPDATE THE EPISODE #####
         if update_item:
             self.logMsg("UPDATE episode itemid: %s" % (itemid), 1)
 
             # Update the movie entry
-            if kodiversion in (16, 17):
+            if self.kodiversion in (16, 17):
                 # Kodi Jarvis, Krypton
                 query = ' '.join((
                 
                     "UPDATE episode",
                     "SET c00 = ?, c01 = ?, c03 = ?, c04 = ?, c05 = ?, c09 = ?, c10 = ?,",
-                        "c12 = ?, c13 = ?, c14 = ?, c15 = ?, c16 = ?, idSeason = ?",
+                        "c12 = ?, c13 = ?, c14 = ?, c15 = ?, c16 = ?, c18 = ?, c19 = ?,",
+                        "idSeason = ?",
                     "WHERE idEpisode = ?"
                 ))
                 kodicursor.execute(query, (title, plot, rating, writer, premieredate,
                     runtime, director, season, episode, title, airsBeforeSeason,
-                    airsBeforeEpisode, seasonid, episodeid))
+                    airsBeforeEpisode, playurl, pathid, seasonid, episodeid))
             else:
                 query = ' '.join((
                     
                     "UPDATE episode",
                     "SET c00 = ?, c01 = ?, c03 = ?, c04 = ?, c05 = ?, c09 = ?, c10 = ?,",
-                        "c12 = ?, c13 = ?, c14 = ?, c15 = ?, c16 = ?",
+                        "c12 = ?, c13 = ?, c14 = ?, c15 = ?, c16 = ?, c18 = ?, c19 = ?",
                     "WHERE idEpisode = ?"
                 ))
                 kodicursor.execute(query, (title, plot, rating, writer, premieredate,
                     runtime, director, season, episode, title, airsBeforeSeason,
-                    airsBeforeEpisode, episodeid))
+                    airsBeforeEpisode, playurl, pathid, episodeid))
 
             # Update the checksum in emby table
             emby_db.updateReference(itemid, checksum)
@@ -1382,40 +1389,35 @@ class TVShows(Items):
         
         ##### OR ADD THE EPISODE #####
         else:
-            self.logMsg("ADD episode itemid: %s" % (itemid), 1)
-            
-            # Add path
-            pathid = kodi_db.addPath(path)
-            # Add the file
-            fileid = kodi_db.addFile(filename, pathid)
+            self.logMsg("ADD episode itemid: %s - Title: %s" % (itemid, title), 1)
             # Create the episode entry
-            if kodiversion in (16, 17):
+            if self.kodiversion in (16, 17):
                 # Kodi Jarvis, Krypton
                 query = (
                     '''
                     INSERT INTO episode(
                         idEpisode, idFile, c00, c01, c03, c04, c05, c09, c10, c12, c13, c14,
-                        idShow, c15, c16, idSeason)
+                        idShow, c15, c16, c18, c19, idSeason)
 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     '''
                 )
                 kodicursor.execute(query, (episodeid, fileid, title, plot, rating, writer,
                     premieredate, runtime, director, season, episode, title, showid,
-                    airsBeforeSeason, airsBeforeEpisode, seasonid))
+                    airsBeforeSeason, airsBeforeEpisode, playurl, pathid, seasonid))
             else:
                 query = (
                     '''
                     INSERT INTO episode(
                         idEpisode, idFile, c00, c01, c03, c04, c05, c09, c10, c12, c13, c14,
-                        idShow, c15, c16)
+                        idShow, c15, c16, c18, c19)
 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     '''
                 )
                 kodicursor.execute(query, (episodeid, fileid, title, plot, rating, writer,
                     premieredate, runtime, director, season, episode, title, showid,
-                    airsBeforeSeason, airsBeforeEpisode))
+                    airsBeforeSeason, airsBeforeEpisode, playurl, pathid))
 
             # Create the reference in emby table
             emby_db.addReference(itemid, episodeid, "Episode", "episode", fileid, pathid,
@@ -1440,7 +1442,7 @@ class TVShows(Items):
         kodicursor.execute(query, (pathid, filename, dateadded, fileid))
         # Process cast
         people = API.getPeopleList()
-        kodi_db.addPeople(episodeid, people, "episode")
+        self.kodi_db.addPeople(episodeid, people, "episode")
         # Process artwork
         # Wide "screenshot" of particular episode
         poster = item.attrib.get('thumb')
@@ -1459,13 +1461,13 @@ class TVShows(Items):
 
         # Process stream details
         streams = API.getMediaStreams()
-        kodi_db.addStreams(fileid, streams, runtime)
+        self.kodi_db.addStreams(fileid, streams, runtime)
         # Process playstates
-        kodi_db.addPlaystate(fileid, resume, runtime, playcount, dateplayed)
+        self.kodi_db.addPlaystate(fileid, resume, runtime, playcount, dateplayed)
         if not self.directpath and resume:
             # Create additional entry for widgets. This is only required for plugin/episode.
-            temppathid = kodi_db.getPath("plugin://plugin.video.plexkodiconnect.tvshows/")
-            tempfileid = kodi_db.addFile(filename, temppathid)
+            temppathid = self.kodi_db.getPath("plugin://plugin.video.plexkodiconnect.tvshows/")
+            tempfileid = self.kodi_db.addFile(filename, temppathid)
             query = ' '.join((
 
                 "UPDATE files",
@@ -1473,7 +1475,7 @@ class TVShows(Items):
                 "WHERE idFile = ?"
             ))
             kodicursor.execute(query, (temppathid, filename, dateadded, tempfileid))
-            kodi_db.addPlaystate(tempfileid, resume, runtime, playcount, dateplayed)
+            self.kodi_db.addPlaystate(tempfileid, resume, runtime, playcount, dateplayed)
         self.kodiconn.commit()
         self.embyconn.commit()
 
@@ -1586,27 +1588,23 @@ class TVShows(Items):
     def removeShow(self, kodiid):
         
         kodicursor = self.kodicursor
-        artwork = self.artwork
-
-        artwork.deleteArtwork(kodiid, "tvshow", kodicursor)
+        self.artwork.deleteArtwork(kodiid, "tvshow", kodicursor)
         kodicursor.execute("DELETE FROM tvshow WHERE idShow = ?", (kodiid,))
         self.logMsg("Removed tvshow: %s." % kodiid, 2)
 
     def removeSeason(self, kodiid):
         
         kodicursor = self.kodicursor
-        artwork = self.artwork
 
-        artwork.deleteArtwork(kodiid, "season", kodicursor)
+        self.artwork.deleteArtwork(kodiid, "season", kodicursor)
         kodicursor.execute("DELETE FROM seasons WHERE idSeason = ?", (kodiid,))
         self.logMsg("Removed season: %s." % kodiid, 2)
 
     def removeEpisode(self, kodiid, fileid):
 
         kodicursor = self.kodicursor
-        artwork = self.artwork
 
-        artwork.deleteArtwork(kodiid, "episode", kodicursor)
+        self.artwork.deleteArtwork(kodiid, "episode", kodicursor)
         kodicursor.execute("DELETE FROM episode WHERE idEpisode = ?", (kodiid,))
         kodicursor.execute("DELETE FROM files WHERE idFile = ?", (fileid,))
         self.logMsg("Removed episode: %s." % kodiid, 2)
@@ -1642,10 +1640,9 @@ class Music(Items):
         count = 0
         for artist in items:
 
-            title = artist['Name']
             if pdialog:
                 percentage = int((float(count) / float(total))*100)
-                pdialog.update(percentage, message=title)
+                pdialog.update(percentage, message=artist['Name'])
                 count += 1
             self.add_updateArtist(artist)
             # Add albums
@@ -1658,10 +1655,9 @@ class Music(Items):
         count = 0
         for album in items:
 
-            title = album['Name']
             if pdialog:
                 percentage = int((float(count) / float(total))*100)
-                pdialog.update(percentage, message=title)
+                pdialog.update(percentage, message=album['Name'])
                 count += 1
             self.add_updateAlbum(album)
             # Add songs
@@ -1674,14 +1670,13 @@ class Music(Items):
         count = 0
         for song in items:
 
-            title = song['Name']
             if pdialog:
                 percentage = int((float(count) / float(total))*100)
-                pdialog.update(percentage, message=title)
+                pdialog.update(percentage, message=song['Name'])
                 count += 1
             self.add_updateSong(song)
             if not pdialog and self.contentmsg:
-                self.contentPop(title, self.newmusic_time)
+                self.contentPop(song['Name'], self.newmusic_time)
 
     def add_updateArtist(self, item, viewtag=None, viewid=None, artisttype="MusicArtist"):
         try:
@@ -1701,7 +1696,6 @@ class Music(Items):
                          artisttype="MusicArtist"):
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -1750,7 +1744,7 @@ class Music(Items):
             # multiple times.
             # Kodi doesn't allow that. In case that happens we just merge the
             # artist entries.
-            artistid = kodi_db.addArtist(name, musicBrainzId)
+            artistid = self.kodi_db.addArtist(name, musicBrainzId)
             # Create the reference in emby table
             emby_db.addReference(
                 itemid, artistid, artisttype, "artist", checksum=checksum)
@@ -1797,10 +1791,8 @@ class Music(Items):
             return
 
     def run_add_updateAlbum(self, item, viewtag=None, viewid=None):
-        kodiversion = self.kodiversion
         kodicursor = self.kodicursor
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -1861,13 +1853,13 @@ class Music(Items):
             # multiple times.
             # Kodi doesn't allow that. In case that happens we just merge the
             # artist entries.
-            albumid = kodi_db.addAlbum(name, musicBrainzId)
+            albumid = self.kodi_db.addAlbum(name, musicBrainzId)
             # Create the reference in emby table
             emby_db.addReference(
                 itemid, albumid, "MusicAlbum", "album", checksum=checksum)
 
         # Process the album info
-        if kodiversion == 17:
+        if self.kodiversion == 17:
             # Kodi Krypton
             query = ' '.join((
 
@@ -1880,7 +1872,7 @@ class Music(Items):
             kodicursor.execute(query, (artistname, year, genre, bio, thumb,
                                        rating, lastScraped, "album", studio,
                                        albumid))
-        elif kodiversion == 16:
+        elif self.kodiversion == 16:
             # Kodi Jarvis
             query = ' '.join((
 
@@ -1893,7 +1885,7 @@ class Music(Items):
             kodicursor.execute(query, (artistname, year, genre, bio, thumb,
                                        rating, lastScraped, "album", studio,
                                        albumid))
-        elif kodiversion == 15:
+        elif self.kodiversion == 15:
             # Kodi Isengard
             query = ' '.join((
 
@@ -1984,7 +1976,7 @@ class Music(Items):
         # Update emby reference with parentid
         emby_db.updateParentId(artistId, albumid)
         # Add genres
-        kodi_db.addMusicGenres(albumid, genres, "album")
+        self.kodi_db.addMusicGenres(albumid, genres, "album")
         # Update artwork
         artwork.addArtwork(artworks, albumid, "album", kodicursor)
         self.embyconn.commit()
@@ -2006,11 +1998,9 @@ class Music(Items):
 
     def run_add_updateSong(self, item, viewtag=None, viewid=None):
         # Process single song
-        kodiversion = self.kodiversion
         kodicursor = self.kodicursor
         emby = self.emby
         emby_db = self.emby_db
-        kodi_db = self.kodi_db
         artwork = self.artwork
         API = PlexAPI.API(item)
 
@@ -2122,7 +2112,7 @@ class Music(Items):
             self.logMsg("ADD song itemid: %s - Title: %s" % (itemid, title), 1)
 
             # Add path
-            pathid = kodi_db.addPath(path, strHash="123")
+            pathid = self.kodi_db.addPath(path, strHash="123")
 
             try:
                 # Get the album
@@ -2134,7 +2124,7 @@ class Music(Items):
                 album_name = item.get('parentTitle')
                 if album_name:
                     self.logMsg("Creating virtual music album for song: %s." % itemid, 1)
-                    albumid = kodi_db.addAlbum(album_name, API.getProvider('MusicBrainzAlbum'))
+                    albumid = self.kodi_db.addAlbum(album_name, API.getProvider('MusicBrainzAlbum'))
                     emby_db.addReference("%salbum%s" % (itemid, albumid), albumid, "MusicAlbum_", "album")
                 else:
                     # No album Id associated to the song.
@@ -2159,7 +2149,7 @@ class Music(Items):
                     self.logMsg("Failed to add album. Creating singles.", 1)
                     kodicursor.execute("select coalesce(max(idAlbum),0) from album")
                     albumid = kodicursor.fetchone()[0] + 1
-                    if kodiversion == 16:
+                    if self.kodiversion == 16:
                         # Kodi Jarvis
                         query = (
                             '''
@@ -2169,7 +2159,7 @@ class Music(Items):
                             '''
                         )
                         kodicursor.execute(query, (albumid, genre, year, "single"))
-                    elif kodiversion == 15:
+                    elif self.kodiversion == 15:
                         # Kodi Isengard
                         query = (
                             '''
@@ -2302,11 +2292,11 @@ class Music(Items):
             result = kodicursor.fetchone()
             if result and result[0] != album_artists:
                 # Field is empty
-                if kodiversion in (16, 17):
+                if self.kodiversion in (16, 17):
                     # Kodi Jarvis, Krypton
                     query = "UPDATE album SET strArtists = ? WHERE idAlbum = ?"
                     kodicursor.execute(query, (album_artists, albumid))
-                elif kodiversion == 15:
+                elif self.kodiversion == 15:
                     # Kodi Isengard
                     query = "UPDATE album SET strArtists = ? WHERE idAlbum = ?"
                     kodicursor.execute(query, (album_artists, albumid))
@@ -2316,7 +2306,7 @@ class Music(Items):
                     kodicursor.execute(query, (album_artists, albumid))
 
         # Add genres
-        kodi_db.addMusicGenres(songid, genres, "song")
+        self.kodi_db.addMusicGenres(songid, genres, "song")
         
         # Update artwork
         allart = API.getAllArtwork(parentInfo=True)
@@ -2358,10 +2348,9 @@ class Music(Items):
             self.removeSong(kodiid)
             # This should only address single song scenario, where server doesn't actually
             # create an album for the song. 
-            customitems = emby_db.getItem_byWildId(itemid)
             emby_db.removeWildItem(itemid)
 
-            for item in customitems:
+            for item in emby_db.getItem_byWildId(itemid):
 
                 item_kid = item[0]
                 item_mediatype = item[1]
@@ -2417,23 +2406,16 @@ class Music(Items):
     def removeSong(self, kodiid):
 
         kodicursor = self.kodicursor
-        artwork = self.artwork
 
-        artwork.deleteArtwork(kodiid, "song", kodicursor)
-        kodicursor.execute("DELETE FROM song WHERE idSong = ?", (kodiid,))
+        self.artwork.deleteArtwork(kodiid, "song", self.kodicursor)
+        self.kodicursor.execute("DELETE FROM song WHERE idSong = ?", (kodiid,))
 
     def removeAlbum(self, kodiid):
 
-        kodicursor = self.kodicursor
-        artwork = self.artwork
-
-        artwork.deleteArtwork(kodiid, "album", kodicursor)
-        kodicursor.execute("DELETE FROM album WHERE idAlbum = ?", (kodiid,))
+        self.artwork.deleteArtwork(kodiid, "album", self.kodicursor)
+        self.kodicursor.execute("DELETE FROM album WHERE idAlbum = ?", (kodiid,))
 
     def removeArtist(self, kodiid):
 
-        kodicursor = self.kodicursor
-        artwork = self.artwork
-
-        artwork.deleteArtwork(kodiid, "artist", kodicursor)
-        kodicursor.execute("DELETE FROM artist WHERE idArtist = ?", (kodiid,))
+        self.artwork.deleteArtwork(kodiid, "artist", self.kodicursor)
+        self.kodicursor.execute("DELETE FROM artist WHERE idArtist = ?", (kodiid,))

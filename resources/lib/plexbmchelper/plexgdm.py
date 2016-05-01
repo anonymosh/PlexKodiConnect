@@ -21,6 +21,7 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 MA 02110-1301, USA.
 """
+import devices
 
 __author__ = 'DHJ (hippojay) <plex@h-jay.com>'
 
@@ -183,6 +184,10 @@ class plexgdm:
                         media_server = server['server']
                         media_port = server['port']
                         scheme = server['protocol']
+                        mediaServer = devices.Server()
+                        mediaServer.port = server['port']
+                        mediaServer.scheme = server['protocol']
+                        mediaServer.ip = server['server']
                         break
                 else:
                     self.logMsg("Did not find our server!", 0)
@@ -191,7 +196,7 @@ class plexgdm:
                 self.logMsg("Checking server [%s] on port [%s]"
                             % (media_server, media_port), 2)
                 client_result = self.download(
-                    '%s://%s:%s/clients' % (scheme, media_server, media_port))
+                    mediaServer, '/clients')
                 registered = False
                 for client in client_result:
                     if (client.attrib.get('machineIdentifier') ==
@@ -289,34 +294,6 @@ class plexgdm:
                     update['protocol'] = 'https'
                 else:
                     update['protocol'] = 'http'
-                discovered_servers.append(update)
-
-        # Append REMOTE PMS that we haven't found yet; if necessary
-        currServer = window('pms_server')
-        if currServer:
-            currServerProt, currServerIP, currServerPort = \
-                currServer.split(':')
-            currServerIP = currServerIP.replace('/', '')
-            for server in discovered_servers:
-                if server['server'] == currServerIP:
-                    break
-            else:
-                # Currently active server was not discovered via GDM; ADD
-                update = {
-                    'port': currServerPort,
-                    'protocol': currServerProt,
-                    'class': None,
-                    'content-type': 'plex/media-server',
-                    'discovery': 'auto',
-                    'master': 1,
-                    'owned': '1',
-                    'role': 'master',
-                    'server': currServerIP,
-                    'serverName': window('plex_servername'),
-                    'updated': int(time.time()),
-                    'uuid': window('plex_machineIdentifier'),
-                    'version': 'irrelevant'
-                }
                 discovered_servers.append(update)
 
         self.server_list = discovered_servers

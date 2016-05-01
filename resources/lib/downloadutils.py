@@ -55,13 +55,6 @@ class DownloadUtils():
         self.userId = userId
         self.logMsg("Set userId: %s" % userId, 0)
 
-    def setServer(self, server):
-        """
-        Reserved for userclient only
-        """
-        self.server = server
-        self.logMsg("Set server: %s" % server, 0)
-
     def setToken(self, token):
         """
         Reserved for userclient only
@@ -91,7 +84,7 @@ class DownloadUtils():
         if certificate != 'None':
             self.s.cert = certificate
 
-    def startSession(self, reset=False):
+    def startSession(self, server, reset=False):
         """
         User should be authenticated when this method is called (via
         userclient)
@@ -109,7 +102,6 @@ class DownloadUtils():
         self.setSSL()
 
         # Set other stuff
-        self.setServer(userClient.getServer())
         self.setToken( userClient.currToken)
         self.setUserId(userClient.currUserId)
         self.setUsername(window('plex_username'))
@@ -157,7 +149,7 @@ class DownloadUtils():
             r = s.put(**kwargs)
         return r
 
-    def downloadUrl(self, url, action_type="GET", postBody=None,
+    def downloadUrl(self, server, url, action_type="GET", postBody=None,
                     parameters=None, authenticate=True, headerOptions=None,
                     verifySSL=True, timeout=None):
         """
@@ -175,6 +167,9 @@ class DownloadUtils():
             JSON               json() object, if applicable
         """
         kwargs = {}
+        # Replace for the real values
+        url = userclient.UserClient().getServerURL(server) + url
+        
         if authenticate is True:
             # Get requests session
             try:
@@ -183,8 +178,6 @@ class DownloadUtils():
                 self.logMsg("Request session does not exist: start one", 0)
                 self.startSession()
                 s = self.s
-            # Replace for the real values
-            url = url.replace("{server}", self.server)
         else:
             # User is not (yet) authenticated. Used to communicate with
             # plex.tv and to check for PMS servers

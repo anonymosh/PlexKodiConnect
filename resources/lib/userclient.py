@@ -9,12 +9,11 @@ import xbmcgui
 import xbmcaddon
 import xbmcvfs
 
+import devices
 import utils
 import downloadutils
 
 import PlexAPI
-from PlexFunctions import GetMachineIdentifier
-
 ###############################################################################
 
 
@@ -64,37 +63,42 @@ class UserClient(threading.Thread):
 
         return username
 
-    def getServer(self, prefix=True):
+    def getActiveServer(self):
+        l = []
+        if utils.settings('activeserver') != '':
+            l.append(map(lambda e: devices.Server.fromString(e), utils.settings('activeserver').split("|")))
+        if utils.settings('ipaddress') != '':
+            manualServer = devices.Server()
+            manualServer.ip = utils.settings('ipaddress')
+            manualServer.port = utils.settings('port')
+            manualServer.owned = utils.settings('plex_serverowned')
+            manualServer.scheme = "http" 
+            if utils.settings('https') == True:
+                manualServer.scheme = 'http'
+            l.append(manualServer)
+            
+        return l
 
-        settings = utils.settings
+    def getServerURL(self, server, prefix=True):
+        # Re-direct via plex if remote - will lead to the correct SSL
+        # certificate
+        if server.address:
+            return server.address
+        
+        serverURL = server.host + ":" + server.port
 
-        # Original host
-        self.servername = settings('plex_servername')
-        HTTPS = settings('https') == "true"
-        host = settings('ipaddress')
-        port = settings('port')
-        self.machineIdentifier = settings('plex_machineIdentifier')
-
-        server = host + ":" + port
-
-        if not host:
+        if not server.host:
             self.logMsg("No server information saved.", 2)
             return False
 
         # If https is true
-        if prefix and HTTPS:
-            server = "https://%s" % server
+        if prefix and server.scheme == 'https':
+            serverURL = "https://%s" % serverURL
         # If https is false
-        elif prefix and not HTTPS:
-            server = "http://%s" % server
-        # User entered IP; we need to get the machineIdentifier
-        if self.machineIdentifier == '' and prefix is True:
-            self.machineIdentifier = GetMachineIdentifier(server)
-            if self.machineIdentifier is None:
-                self.machineIdentifier = ''
-            settings('plex_machineIdentifier', value=self.machineIdentifier)
-        self.logMsg('Returning active server: %s' % server)
-        return server
+        elif prefix:
+            serverURL = "http://%s" % serverURL
+        self.logMsg('Returning active server: %s' % serverURL)
+        return serverURL
 
     def getSSLverify(self):
         # Verify host certificate

@@ -442,22 +442,22 @@ def PMSHttpsEnabled(url):
         return True
 
 
-def GetMachineIdentifier(url):
+def GetMachineIdentifier(server):
     """
     Returns the unique PMS machine identifier of url
 
     Returns None if something went wrong
     """
-    xml = downloadutils.DownloadUtils().downloadUrl(url + '/identity')
+    xml = downloadutils.DownloadUtils().downloadUrl(server, '/identity')
     try:
         xml.attrib
     except:
-        logMsg(title, 'Could not get the PMS machineIdentifier for %s'
-               % url, -1)
+        logMsg(title, 'Could not get the PMS machineIdentifier for %r'
+               % server, -1)
         return None
     machineIdentifier = xml.attrib.get('machineIdentifier')
-    logMsg(title, 'Found machineIdentifier %s for %s'
-           % (machineIdentifier, url), 1)
+    logMsg(title, 'Found machineIdentifier %s for %r'
+           % (machineIdentifier, server), 1)
     return machineIdentifier
 
 

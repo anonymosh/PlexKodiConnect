@@ -53,12 +53,16 @@ from PlexFunctions import PlexToKodiTimefactor, PMSHttpsEnabled
 import embydb_functions as embydb
 
 
+PLEX_SERVER = devices.Server()
+PLEX_SERVER.scheme = 'https'
+PLEX_SERVER.host = 'plex.tv'
+
 @utils.logging
 class PlexAPI():
     # CONSTANTS
     # Timeout for POST/GET commands, I guess in seconds
     timeout = 10
-
+    
     def __init__(self):
         self.__language__ = xbmcaddon.Addon().getLocalizedString
         self.g_PMS = {}
@@ -218,7 +222,7 @@ class PlexAPI():
         Returns False if not yet done so, or the XML response file as etree
         """
         # Try to get a temporary token
-        xml = self.doUtils('https://plex.tv/pins/%s.xml' % identifier,
+        xml = self.doUtils(PLEX_SERVER, '/pins/%s.xml' % identifier,
                            authenticate=False)
         try:
             temp_token = xml.find('auth_token').text
@@ -229,7 +233,7 @@ class PlexAPI():
         if not temp_token:
             return False
         # Use temp token to get the final plex credentials
-        xml = self.doUtils('https://plex.tv/users/account',
+        xml = self.doUtils(PLEX_SERVER, '/users/account',
                            authenticate=False,
                            parameters={'X-Plex-Token': temp_token})
         return xml
@@ -238,10 +242,8 @@ class PlexAPI():
         """
         For plex.tv sign-in: returns 4-digit code and identifier as 2 str
         """
-        code = None
-        identifier = None
         # Download
-        xml = self.doUtils('https://plex.tv/pins.xml',
+        xml = self.doUtils(PLEX_SERVER, '/pins.xml',
                            authenticate=False,
                            action_type="POST")
         try:
@@ -254,7 +256,7 @@ class PlexAPI():
         self.logMsg('Successfully retrieved code and id from plex.tv', 1)
         return code, identifier
 
-    def CheckConnection(self, url, token=None, verifySSL=None):
+    def CheckConnection(self, server, url, token=None, verifySSL=None):
         """
         Checks connection to a Plex server, available at url. Can also be used
         to check for connection with plex.tv.
@@ -282,7 +284,7 @@ class PlexAPI():
             verifySSL = None if utils.settings('sslverify') == 'true' \
                 else False
         if 'plex.tv' in url:
-            url = 'https://plex.tv/api/home/users'
+            url = '/api/home/users'
         else:
             url = url + '/library/onDeck'
         self.logMsg("Checking connection to server %s with verifySSL=%s"
@@ -290,7 +292,7 @@ class PlexAPI():
         # Check up to 3 times before giving up
         count = 0
         while count < 3:
-            answer = self.doUtils(url,
+            answer = self.doUtils(PLEX_SERVER, url,
                                   authenticate=False,
                                   headerOptions=headerOptions,
                                   verifySSL=verifySSL)
@@ -561,7 +563,7 @@ class PlexAPI():
 
         get Plex media Server List from plex.tv/pms/resources
         """
-        xml = self.doUtils('https://plex.tv/api/resources',
+        xml = self.doUtils(PLEX_SERVER, '/api/resources',
                            authenticate=False,
                            parameters={'includeHttps': 1},
                            headerOptions={'X-Plex-Token': token})
@@ -650,7 +652,9 @@ class PlexAPI():
 
     def pokePMS(self, PMS, queue):
         # Ignore SSL certificates for now
-        xml = self.doUtils(PMS['baseURL'],
+        pms = devices.Server()
+        pms.address = PMS['baseURL']
+        xml = self.doUtils(pms, '',
                            authenticate=False,
                            headerOptions={'X-Plex-Token': PMS['token']},
                            verifySSL=False)
@@ -758,10 +762,10 @@ class PlexAPI():
 
         response = urllib2.urlopen(request).read()
 
-        logMsg("====== MyPlex sign out XML ======", 1)
-        logMsg(response, 1)
-        logMsg("====== MyPlex sign out XML finished ======", 1)
-        logMsg('MyPlex Sign Out done', 0)
+        self.logMsg("====== MyPlex sign out XML ======", 1)
+        self.logMsg(response, 1)
+        self.logMsg("====== MyPlex sign out XML finished ======", 1)
+        self.logMsg('MyPlex Sign Out done', 0)
 
     def GetUserArtworkURL(self, username):
         """
@@ -902,11 +906,11 @@ class PlexAPI():
 
         settings('userid') and settings('username') with new plex token
         """
-        url = 'https://plex.tv/api/home/users/' + userId + '/switch'
+        url = '/api/home/users/' + userId + '/switch'
         if pin:
             url += '?pin=' + pin
         self.logMsg('Switching to user %s' % userId, 0)
-        answer = self.doUtils(url,
+        answer = self.doUtils(PLEX_SERVER, url,
                               authenticate=False,
                               action_type="POST",
                               headerOptions={'X-Plex-Token': token})
@@ -929,8 +933,8 @@ class PlexAPI():
                        else 'false')
 
         # Get final token to the PMS we've chosen
-        url = 'https://plex.tv/api/resources?includeHttps=1'
-        xml = self.doUtils(url,
+        url = '/api/resources?includeHttps=1'
+        xml = self.doUtils(PLEX_SERVER, url,
                            authenticate=False,
                            type="GET",
                            headerOptions={'X-Plex-Token': token})
@@ -986,7 +990,7 @@ class PlexAPI():
         If any value is missing, None is returned instead (or "" from plex.tv)
         If an error is encountered, False is returned
         """
-        xml = self.doUtils('https://plex.tv/api/home/users/',
+        xml = self.doUtils(PLEX_SERVER, '/api/home/users/',
                            authenticate=False,
                            headerOptions={'X-Plex-Token': token})
         try:

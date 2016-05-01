@@ -16,11 +16,13 @@ class Server():
     'accesstoken': token        Access token to this server
     'baseURL': baseURL          scheme://ip:port
     'ownername'                 Plex username of PMS owner
+    'serverOffset'              milliseconds between server and local wall clock
     }
     """
     def __init__(self):
         self.name = ''
         self.address = ''
+        self.host = ''
         self.ip = ''
         self.port = ''
         self.scheme = ''
@@ -41,7 +43,7 @@ class Server():
         server.port =  value.get('port')
         server.scheme =  value.get('scheme')
         server.machineIdentifier =  value['uuid']
-        server.accesstoken =  value.get('accesstoken')
+        server.accesstoken = value.get('accesstoken')
         server.baseURL =  value.get('baseURL')
         server.ownername =  value.get('ownername')
         server.local =  value.get('local') == '1'
@@ -52,6 +54,18 @@ class Server():
     def __str__(self):
         return ','.join("%s:%r" % (entry[0],entry[1]) for entry in vars(self).items())
 
+    def __repr__(self):
+        url = 'http'
+        if self.scheme == 'https':
+            url = 'https'
+        host = self.ip
+        if self.host:
+            host = self.host
+        port = ''
+        if self.port:
+            port = ":"+self.port
+        return "%s://%s%s" % (url, host, port)
+        
     @classmethod
     def fromString(cls, s):
         server = Server()

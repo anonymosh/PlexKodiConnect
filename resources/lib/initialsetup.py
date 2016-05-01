@@ -12,10 +12,15 @@ import downloadutils
 import userclient
 import devices
 
+from PlexFunctions import GetMachineIdentifier
+
 import PlexAPI
 
 ###############################################################################
 
+PLEX_SERVER = devices.Server()
+PLEX_SERVER.scheme = 'https'
+PLEX_SERVER.host = 'plex.tv'
 
 @utils.logging
 class InitialSetup():
@@ -92,7 +97,7 @@ class InitialSetup():
         # as plexToken will be ''
         if (plexToken and myplexlogin == 'true' and forcePlexTV is False
                 and chooseServer is False):
-            chk = self.plx.CheckConnection('plex.tv', plexToken)
+            chk = self.plx.CheckConnection('plex.tv', '', token=plexToken)
             try:
                 chk.attrib
             except:
@@ -122,7 +127,7 @@ class InitialSetup():
             else:
                 self.logMsg('plex.tv connection with token successful', 0)
                 # Refresh the info from Plex.tv
-                xml = self.doUtils('https://plex.tv/users/account',
+                xml = self.doUtils(PLEX_SERVER, '/users/account',
                                    authenticate=False,
                                    headerOptions={'X-Plex-Token': plexToken})
                 try:
@@ -140,7 +145,7 @@ class InitialSetup():
                     self.logMsg('Updated Plex info from plex.tv', 0)
 
 
-        server = self.userClient.getServer()
+        server = self.userClient.getActiveServer()
         # If a Plex server IP has already been set, return.
         if len(server) > 0 and forcePlexTV is False and chooseServer is False:
             self.logMsg("Server are already set.", 0)
@@ -166,13 +171,6 @@ class InitialSetup():
         for server in serverlist:
             httpsUpdated = False
             while True:
-                # Re-direct via plex if remote - will lead to the correct SSL
-                # certificate
-                if server.local:
-                    url = server.scheme + '://' + server.ip + ':' \
-                        + server.port
-                else:
-                    url = server.baseURL
                 # Deactive SSL verification if the server is local!
                 # Watch out - settings is cached by Kodi - use dedicated var!
                 if server.local:
@@ -185,8 +183,8 @@ class InitialSetup():
                     self.logMsg("Setting SSL verify to true, because server is "
                                 "not local", 1)
                     verifySSL = None
-                chk = self.plx.CheckConnection(url,
-                                               server.accesstoken,
+                chk = self.plx.CheckConnection(server, '',
+                                               token=server.accesstoken,
                                                verifySSL=verifySSL)
                 if chk == 504 and httpsUpdated is False:
                     # Not able to use HTTP, try HTTPs for now
@@ -235,12 +233,19 @@ class InitialSetup():
                 server.scheme = baseURL[0]
                 server.ipaddress = baseURL[1].replace('//', '')
                 server.port = baseURL[2]
-            
+                # User entered IP; we need to get the machineIdentifier
+                if server.machineIdentifier == '':
+                    machineIdentifier = GetMachineIdentifier(server)
+                    if machineIdentifier is None:
+                        server.machineIdentifier = ''
+                    #TODO: find a better place for this
+                    server.machineIdentifier = machineIdentifier
             # enforce https?
             # if scheme == 'https':
             #    utils.settings('https', 'true')
             #else:
             #    utils.settings('https', 'false')
+            
         self.logMsg("Writing to Kodi user settings file", 0)
         # Write to Kodi settings file
         myStr = "|".join("%s" for server in activeServer)   

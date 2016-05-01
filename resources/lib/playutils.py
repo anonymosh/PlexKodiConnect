@@ -56,7 +56,7 @@ class PlayUtils():
             # Set playmethod property
             utils.window('emby_%s.playmethod' % playurl, "DirectStream")
 
-        elif self.isTranscoding():
+        else:
             self.logMsg("File is transcoding.", 1)
             quality = {
                 'maxVideoBitrate': self.getBitrate(),
@@ -215,13 +215,6 @@ class PlayUtils():
                     "required is: %s" % (settings, sourceBitrate), 1)
         if settings < sourceBitrate:
             return False
-        return True
-
-    def isTranscoding(self):
-        # Make sure the server supports it
-        if not self.item['MediaSources'][0]['SupportsTranscoding']:
-            return False
-
         return True
 
     def getBitrate(self):

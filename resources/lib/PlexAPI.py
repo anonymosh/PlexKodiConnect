@@ -936,7 +936,6 @@ class PlexAPI():
         url = '/api/resources?includeHttps=1'
         xml = self.doUtils(PLEX_SERVER, url,
                            authenticate=False,
-                           type="GET",
                            headerOptions={'X-Plex-Token': token})
         try:
             xml.attrib
